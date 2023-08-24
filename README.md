@@ -2,6 +2,16 @@
 
 Run an OpenGL application on Linux, and nothing more.
 
+## Kernel Setup for Nvidia Cards
+
+I had to add `nvidia_drm.modeset=1` as a kernel commandline parameter. On Arch this was done by editing `/boot/loader/entries/arch.conf`.
+
+## Reading References
+
+https://gitlab.freedesktop.org/mesa/kmscube
+
+https://github.com/dvdhrm/docs/tree/master/drm-howto
+
 ## Remote Environment Setup
 
 Development can take place much faster if you develop in your local environment, and run/test on a remote machine without X11 or Wayland.
