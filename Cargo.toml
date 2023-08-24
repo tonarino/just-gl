@@ -5,4 +5,4 @@ edition = "2021"
 
 [dependencies]
 drm = "0.9"
-gbm = "0.12"
+gbm = { version = "0.12", default-features = false, features = ["import-egl", "drm-support"] }

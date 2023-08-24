@@ -30,18 +30,20 @@ impl Card {
 fn main() {
     // TODO(bschwind) - Use libdrm to iterate over available DRM devices.
     let gpu = Card::open("/dev/dri/card0");
-    dbg!(gpu.get_driver());
-    dbg!(gpu.get_bus_id());
+    dbg!(gpu.get_driver().expect("Failed to get GPU driver info"));
+    dbg!(gpu.get_bus_id().expect("Failed to get GPU bus ID"));
 
     let resources = gpu.resource_handles().expect("Failed to get GPU resource handles");
     dbg!(&resources);
 
     for connector_handle in &resources.connectors {
         let force_probe = false;
-        let connector = gpu.get_connector(*connector_handle, force_probe);
+        let connector = gpu
+            .get_connector(*connector_handle, force_probe)
+            .expect("Failed to get GPU connector info");
 
         dbg!(connector);
     }
 
-    let gbm = GbmDevice::new(gpu).expect("Failed to create GbmDevice");
+    let _gbm = GbmDevice::new(gpu).expect("Failed to create GbmDevice");
 }
