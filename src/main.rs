@@ -1,11 +1,12 @@
 use drm::{
     control::{
         connector::{Handle as ConnectorHandle, Info as ConnectorInfo, State as ConnectorState},
+        encoder::Handle as EncoderHandle,
         Device as ControlDevice, Mode, ModeTypeFlags, ResourceHandles,
     },
     Device,
 };
-use gbm::Device as GbmDevice;
+use gbm::{BufferObjectFlags, Device as GbmDevice, Format as BufferFormat};
 use std::os::fd::{AsFd, BorrowedFd};
 
 /// A simple wrapper for a device node.
@@ -78,6 +79,10 @@ fn connector_preferred_mode(connector_info: &ConnectorInfo) -> Option<Mode> {
         .copied()
 }
 
+fn first_encoder(connector_info: &ConnectorInfo) -> Option<EncoderHandle> {
+    connector_info.encoders().iter().next().copied()
+}
+
 fn main() {
     // TODO(bschwind) - Use libdrm to iterate over available DRM devices.
     let gpu = Card::open("/dev/dri/card0");
@@ -89,13 +94,14 @@ fn main() {
     print_connector_info(&gpu, &resources);
 
     let force_probe = false;
-    let Some(first_handle) = first_connected_connector(&gpu) else {
+    let Some(first_connector_handle) = first_connected_connector(&gpu) else {
         println!("No display connected, exiting");
         return;
     };
 
-    let first_connector =
-        gpu.get_connector(first_handle, force_probe).expect("Failed to get GPU connector info");
+    let first_connector = gpu
+        .get_connector(first_connector_handle, force_probe)
+        .expect("Failed to get GPU connector info");
 
     let connector_interface = first_connector.interface().as_str();
     let interface_id = first_connector.interface_id();
@@ -109,5 +115,46 @@ fn main() {
 
     println!("Using mode: {preferred_mode:?}");
 
-    let _gbm = GbmDevice::new(gpu).expect("Failed to create GbmDevice");
+    let Some(encoder_handle) = first_encoder(&first_connector) else {
+        println!("First connector does not have an encoder, exiting");
+        return;
+    };
+
+    let encoder =
+        gpu.get_encoder(encoder_handle).expect("Failed to get encoder from encoder handle");
+    dbg!(encoder);
+
+    let crtc_handle = *resources
+        .filter_crtcs(encoder.possible_crtcs())
+        .first()
+        .expect("No CRTCs found for encoder");
+    let crtc = gpu.get_crtc(crtc_handle).expect("Failed to get CRTC from CRTC handle");
+    dbg!(crtc);
+
+    let (width, height) = preferred_mode.size();
+    let (width, height) = (width as u32, height as u32);
+
+    let gbm = GbmDevice::new(gpu).expect("Failed to create GbmDevice");
+
+    let mut buffer_object = gbm
+        .create_buffer_object::<()>(
+            width,
+            height,
+            BufferFormat::Argb8888,
+            BufferObjectFlags::SCANOUT | BufferObjectFlags::WRITE,
+        )
+        .unwrap();
+
+    let buffer_data = vec![255u8; (width * height * 4) as usize];
+
+    buffer_object.write(&buffer_data).unwrap().unwrap();
+
+    let depth_bits = 32;
+    let bits_per_pixel = 32;
+    let fb = gbm.add_framebuffer(&buffer_object, depth_bits, bits_per_pixel).unwrap();
+
+    gbm.set_crtc(crtc_handle, Some(fb), (0, 0), &[first_connector_handle], Some(preferred_mode))
+        .unwrap();
+
+    std::thread::sleep(std::time::Duration::from_secs(5));
 }
