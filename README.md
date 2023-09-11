@@ -12,6 +12,8 @@ https://gitlab.freedesktop.org/mesa/kmscube
 
 https://github.com/dvdhrm/docs/tree/master/drm-howto
 
+https://zamundaaa.github.io/wayland/2023/03/10/porting-away-from-gbm-surface.html
+
 ## Remote Environment Setup
 
 Development can take place much faster if you develop in your local environment, and run/test on a remote machine without X11 or Wayland.
