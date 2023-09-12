@@ -2,6 +2,15 @@
 
 Run an OpenGL application on Linux, and nothing more.
 
+## Terminology
+
+* **KMS** - Kernel Mode Setting
+* **DRM** - Direct Rendering Manager
+* **GBM** - Generic Buffer Management
+* **EGL** - An interface between OpenGL and the underlying native platform windowing system. Unlike predecessors GLX (for X11) and WGL (Windows), EGL is independent of the underlying display technology. It can be used on any number of platforms, including Wayland, X11, and KMS
+* **CRT** - Cathode Ray Tube
+* **CRTC** - CRT Controller, or Video Controller. Corresponds to a video buffer on a video card that is destined to be output
+
 ## Kernel Setup for Nvidia Cards
 
 I had to add `nvidia_drm.modeset=1` as a kernel commandline parameter. On Arch this was done by editing `/boot/loader/entries/arch.conf`.
@@ -13,6 +22,8 @@ https://gitlab.freedesktop.org/mesa/kmscube
 https://github.com/dvdhrm/docs/tree/master/drm-howto
 
 https://zamundaaa.github.io/wayland/2023/03/10/porting-away-from-gbm-surface.html
+
+https://github.com/nyorain/kms-vulkan#what-are-egl-and-gbm
 
 ## Remote Environment Setup
 
