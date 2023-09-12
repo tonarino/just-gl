@@ -25,6 +25,8 @@ https://zamundaaa.github.io/wayland/2023/03/10/porting-away-from-gbm-surface.htm
 
 https://github.com/nyorain/kms-vulkan#what-are-egl-and-gbm
 
+https://github.com/CuarzoSoftware/SRM
+
 ## Remote Environment Setup
 
 Development can take place much faster if you develop in your local environment, and run/test on a remote machine without X11 or Wayland.
