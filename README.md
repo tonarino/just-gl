@@ -28,6 +28,8 @@ https://github.com/nyorain/kms-vulkan#what-are-egl-and-gbm
 
 https://github.com/CuarzoSoftware/SRM
 
+https://github.com/rust-windowing/winit/pull/2272
+
 ## Remote Environment Setup
 
 Development can take place much faster if you develop in your local environment, and run/test on a remote machine without X11 or Wayland.
