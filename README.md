@@ -4,6 +4,7 @@ Run an OpenGL application on Linux, and nothing more.
 
 ## Terminology
 
+* **DRI** - Direct Rendering Infrastructure
 * **KMS** - Kernel Mode Setting
 * **DRM** - Direct Rendering Manager
 * **GBM** - Generic Buffer Management
