@@ -1,7 +1,7 @@
-use clap::{Parser, Arg};
+use clap::Parser;
 use drm::{
     control::{
-        connector::{Handle as ConnectorHandle, Info as ConnectorInfo, State as ConnectorState, self},
+        connector::{Handle as ConnectorHandle, Info as ConnectorInfo, State as ConnectorState},
         encoder::Handle as EncoderHandle,
         Device as ControlDevice, Mode, ModeTypeFlags, ResourceHandles,
     },
@@ -35,7 +35,7 @@ impl Card {
     }
 }
 
-fn get_connector_name(info: &connector::Info) -> String {
+fn get_connector_name(info: &ConnectorInfo) -> String {
     format!("{}-{}", info.interface().as_str(), info.interface_id())
 }
 
@@ -67,13 +67,11 @@ fn get_connected_connector(gpu: &Card, name: &Option<String>) -> Option<Connecto
         .iter()
         .find(|connector_handle| {
             let force_probe = false;
-            let info = gpu.get_connector(**connector_handle, force_probe)
+            let info = gpu
+                .get_connector(**connector_handle, force_probe)
                 .expect("Failed to get GPU connector info");
-            let name_matches = if let Some(name) = name {
-                name == &get_connector_name(&info)
-            } else {
-                true
-            };
+            let name_matches =
+                if let Some(name) = name { name == &get_connector_name(&info) } else { true };
             name_matches && info.state() == ConnectorState::Connected
         })
         .copied()
@@ -101,7 +99,7 @@ struct Args {
 
     /// Connector to use, e.g. DP-1; if not provided some connected one will be selected
     #[arg(long)]
-    connector: Option<String>
+    connector: Option<String>,
 }
 
 fn main() {
