@@ -136,14 +136,23 @@ fn main() {
 
     let gbm = GbmDevice::new(gpu).expect("Failed to create GbmDevice");
 
-    let mut buffer_object = gbm
-        .create_buffer_object::<()>(
-            width,
-            height,
-            BufferFormat::Argb8888,
-            BufferObjectFlags::SCANOUT | BufferObjectFlags::WRITE,
-        )
-        .unwrap();
+    let usage = BufferObjectFlags::SCANOUT | BufferObjectFlags::WRITE;
+    use BufferFormat::*;
+    for format in [
+        Abgr8888, Argb8888, Bgr888, Bgra8888, Bgrx8888, Rgb888, Rgb888_a8, Rgba8888, Rgbx8888,
+        Xbgr8888, Xrgb8888,
+    ] {
+        println!(
+            "Is {} format supported for {:?} usage: {}",
+            format,
+            usage,
+            gbm.is_format_supported(format, usage)
+        );
+    }
+
+    let format = Argb8888;
+    println!("gbm.create_buffer_object(width: {width}, height: {height}, format: {format}, usage: {usage:?})");
+    let mut buffer_object = gbm.create_buffer_object::<()>(width, height, format, usage).unwrap();
 
     let buffer_data = vec![255u8; (width * height * 4) as usize];
 
