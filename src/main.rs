@@ -1,6 +1,7 @@
+use clap::{Parser, Arg};
 use drm::{
     control::{
-        connector::{Handle as ConnectorHandle, Info as ConnectorInfo, State as ConnectorState},
+        connector::{Handle as ConnectorHandle, Info as ConnectorInfo, State as ConnectorState, self},
         encoder::Handle as EncoderHandle,
         Device as ControlDevice, Mode, ModeTypeFlags, ResourceHandles,
     },
@@ -34,6 +35,10 @@ impl Card {
     }
 }
 
+fn get_connector_name(info: &connector::Info) -> String {
+    format!("{}-{}", info.interface().as_str(), info.interface_id())
+}
+
 fn print_connector_info(gpu: &Card, resources: &ResourceHandles) {
     println!("Connectors:");
 
@@ -43,8 +48,7 @@ fn print_connector_info(gpu: &Card, resources: &ResourceHandles) {
             .get_connector(*connector_handle, force_probe)
             .expect("Failed to get GPU connector info");
 
-        let connector_interface = connector.interface().as_str();
-        let interface_id = connector.interface_id();
+        let name = get_connector_name(&connector);
 
         let connection_state = match connector.state() {
             ConnectorState::Connected => "✅",
@@ -52,21 +56,25 @@ fn print_connector_info(gpu: &Card, resources: &ResourceHandles) {
             ConnectorState::Unknown => "❔",
         };
 
-        println!("\t{connector_interface}-{interface_id}, Connected={connection_state}");
+        println!("\t{name}, Connected={connection_state}");
     }
 }
 
-fn first_connected_connector(gpu: &Card) -> Option<ConnectorHandle> {
+fn get_connected_connector(gpu: &Card, name: &Option<String>) -> Option<ConnectorHandle> {
     gpu.resource_handles()
         .expect("Failed to get GPU resource handles")
         .connectors
         .iter()
         .find(|connector_handle| {
             let force_probe = false;
-            gpu.get_connector(**connector_handle, force_probe)
-                .expect("Failed to get GPU connector info")
-                .state()
-                == ConnectorState::Connected
+            let info = gpu.get_connector(**connector_handle, force_probe)
+                .expect("Failed to get GPU connector info");
+            let name_matches = if let Some(name) = name {
+                name == &get_connector_name(&info)
+            } else {
+                true
+            };
+            name_matches && info.state() == ConnectorState::Connected
         })
         .copied()
 }
@@ -83,9 +91,24 @@ fn first_encoder(connector_info: &ConnectorInfo) -> Option<EncoderHandle> {
     connector_info.encoders().iter().next().copied()
 }
 
+const DEFAULT_CARD_PATH: &str = "/dev/dri/card0";
+
+#[derive(Parser)]
+struct Args {
+    /// Device file representing the GPU
+    #[arg(long, default_value = DEFAULT_CARD_PATH)]
+    card_path: String,
+
+    /// Connector to use, e.g. DP-1; if not provided some connected one will be selected
+    #[arg(long)]
+    connector: Option<String>
+}
+
 fn main() {
+    let args = Args::parse();
+
     // TODO(bschwind) - Use libdrm to iterate over available DRM devices.
-    let gpu = Card::open("/dev/dri/card0");
+    let gpu = Card::open(&args.card_path);
     dbg!(gpu.get_driver().expect("Failed to get GPU driver info"));
     dbg!(gpu.get_bus_id().expect("Failed to get GPU bus ID"));
 
@@ -93,12 +116,16 @@ fn main() {
 
     print_connector_info(&gpu, &resources);
 
-    let force_probe = false;
-    let Some(first_connector_handle) = first_connected_connector(&gpu) else {
-        println!("No display connected, exiting");
+    let Some(first_connector_handle) = get_connected_connector(&gpu, &args.connector) else {
+        if let Some(name) = &args.connector {
+            println!("Display {name} does not exist or is not connected, exiting");
+        } else {
+            println!("No display connected, exiting");
+        }
         return;
     };
 
+    let force_probe = false;
     let first_connector = gpu
         .get_connector(first_connector_handle, force_probe)
         .expect("Failed to get GPU connector info");
