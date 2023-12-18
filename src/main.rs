@@ -111,43 +111,36 @@ fn main() {
 
     print_connector_info(&gpu, &resources);
 
-    let first_connector = {
+    let connector = {
         let mut connectors = get_connected_connectors(&gpu);
-        let maybe_connector = if let Some(name) = &args.connector {
-            connectors.find(|info| &get_connector_name(info) == name)
+        let card_path = args.card_path.display();
+        if let Some(name) = &args.connector {
+            connectors.find(|info| &get_connector_name(info) == name).unwrap_or_else(|| {
+                panic!(
+                    "Connector {name} does not exist or is not connected to {card_path}, exiting"
+                )
+            })
         } else {
-            connectors.next()
-        };
-
-        let Some(first_connector) = maybe_connector else {
-            let card_path = args.card_path.to_string_lossy();
-            if let Some(name) = &args.connector {
-                println!(
-                    "Connector {name} does not exist or is not connected to {}, exiting",
-                    card_path
-                );
-            } else {
-                println!("No connector connected to {}, exiting", card_path);
-            }
-            return;
-        };
-        first_connector
+            connectors
+                .next()
+                .unwrap_or_else(|| panic!("No connector connected to {card_path}, exiting."))
+        }
     };
 
-    let connector_interface = first_connector.interface().as_str();
-    let interface_id = first_connector.interface_id();
+    let connector_interface = connector.interface().as_str();
+    let interface_id = connector.interface_id();
 
     println!("Using connector: {connector_interface}-{interface_id}");
 
-    let Some(preferred_mode) = connector_preferred_mode(&first_connector) else {
-        println!("No preferred mode for the first connected connector, exiting");
+    let Some(preferred_mode) = connector_preferred_mode(&connector) else {
+        println!("No preferred mode for the selected connector, exiting");
         return;
     };
 
     println!("Using mode: {preferred_mode:?}");
 
-    let Some(encoder_handle) = first_encoder(&first_connector) else {
-        println!("First connector does not have an encoder, exiting");
+    let Some(encoder_handle) = first_encoder(&connector) else {
+        println!("Selected connector does not have an encoder, exiting");
         return;
     };
 
@@ -184,7 +177,7 @@ fn main() {
     let bits_per_pixel = 32;
     let fb = gbm.add_framebuffer(&buffer_object, depth_bits, bits_per_pixel).unwrap();
 
-    gbm.set_crtc(crtc_handle, Some(fb), (0, 0), &[first_connector.handle()], Some(preferred_mode))
+    gbm.set_crtc(crtc_handle, Some(fb), (0, 0), &[connector.handle()], Some(preferred_mode))
         .unwrap();
 
     std::thread::sleep(std::time::Duration::from_secs(5));
