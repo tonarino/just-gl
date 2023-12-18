@@ -7,6 +7,8 @@ edition = "2021"
 clap = { version = "4.4", features = ["derive"] }
 drm = "0.11"
 gbm = { version = "0.14", default-features = false, features = ["import-egl", "drm-support"] }
-glutin = "0.31"
-# Glutin 0.31 depends on rwh 0.5; rwh 0.6 has breaking changes
+glium = "0.33"
+# Glium 0.33 depends on glutin 0.30
+glutin = "0.30"
+# Glutin 0.30 depends on rwh 0.5
 raw-window-handle = "0.5"

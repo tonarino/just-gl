@@ -219,7 +219,8 @@ fn main() {
     let bits_per_pixel = 32;
     let fb = gbm.add_framebuffer(&buffer_object, depth_bits, bits_per_pixel).unwrap();
 
-    let _glutin_context = glutin::init(&window);
+    let _glutin_display = glutin::init(&window);
+
     gbm.set_crtc(crtc_handle, Some(fb), (0, 0), &[connector.handle()], Some(preferred_mode))
         .unwrap();
 

@@ -1,14 +1,19 @@
-use glutin::config::GlConfig;
-use glutin::context::GlContext;
-use glutin::display::GlDisplay;
-use glutin::{
-    api::egl::display::Display,
-    config::{ConfigSurfaceTypes, ConfigTemplateBuilder},
-    context::{ContextApi, ContextAttributesBuilder},
-};
-use raw_window_handle::HasRawDisplayHandle;
+use std::num::NonZeroU32;
 
-pub(crate) fn init(window: &crate::Window) -> impl GlContext {
+use glutin::{context::NotCurrentGlContextSurfaceAccessor, display::GetGlDisplay};
+use raw_window_handle::HasRawWindowHandle;
+
+pub(crate) fn init(
+    window: &crate::Window,
+) -> glium::backend::glutin::Display<glium::glutin::surface::WindowSurface> {
+    use glutin::config::GlConfig;
+    use glutin::display::GlDisplay;
+    use glutin::{
+        api::egl::display::Display,
+        config::{ConfigSurfaceTypes, ConfigTemplateBuilder},
+    };
+    use raw_window_handle::HasRawDisplayHandle;
+
     let display_handle = window.raw_display_handle();
     let display = unsafe { Display::new(display_handle) }.expect("Failed to create glutin display");
 
@@ -24,24 +29,32 @@ pub(crate) fn init(window: &crate::Window) -> impl GlContext {
 
     println!("Picked a config with {} samples", config.num_samples());
 
-    // Context creation.
-    // Using None handle should be okay for GBM
-    let context_attributes = ContextAttributesBuilder::new().build(None);
+    // TODO(mbernat): get size from window
+    // let (width, height): (u32, u32) = window.inner_size().into();
+    let (width, height) = (1920, 1080);
+    let attrs = glutin::surface::SurfaceAttributesBuilder::<glutin::surface::WindowSurface>::new()
+        .build(
+            window.raw_window_handle(),
+            NonZeroU32::new(width).unwrap(),
+            NonZeroU32::new(height).unwrap(),
+        );
 
-    // Since glutin by default tries to create OpenGL core context, which may not be
-    // present we should try gles.
-    // Using None handle should be okay for GBM
-    let fallback_context_attributes =
-        ContextAttributesBuilder::new().with_context_api(ContextApi::Gles(None)).build(None);
-
-    let not_current = unsafe {
-        display.create_context(&config, &context_attributes).unwrap_or_else(|_| {
-            display
-                .create_context(&config, &fallback_context_attributes)
-                .expect("failed to create context")
-        })
-    };
-
-    // TODO(mbernat): use make_current() with surface
-    not_current.make_current_surfaceless().unwrap()
+    // Finally we can create a Surface, use it to make a PossiblyCurrentContext and create the glium Display
+    // TODO(mbernat): make sure we're using the right config, this one comes from non-surface glutin example
+    let surface = unsafe { config.display().create_window_surface(&config, &attrs).unwrap() };
+    // NOTE(mbernat): None window handle should be fine for GBM
+    let context_attributes = glutin::context::ContextAttributesBuilder::new().build(None);
+    let current_context = (unsafe {
+        config
+            .display()
+            .create_context(&config, &context_attributes)
+            .expect("failed to create context")
+    })
+    .make_current(&surface)
+    .unwrap();
+    glium::backend::glutin::Display::from_context_surface(
+        glutin::context::PossiblyCurrentContext::Egl(current_context),
+        glutin::surface::Surface::Egl(surface),
+    )
+    .unwrap()
 }
