@@ -1,14 +1,17 @@
 use clap::Parser;
 use drm::{
     control::{
-        connector::{Handle as ConnectorHandle, Info as ConnectorInfo, State as ConnectorState},
+        connector::{Info as ConnectorInfo, State as ConnectorState},
         encoder::Handle as EncoderHandle,
         Device as ControlDevice, Mode, ModeTypeFlags, ResourceHandles,
     },
     Device,
 };
 use gbm::{BufferObjectFlags, Device as GbmDevice, Format as BufferFormat};
-use std::os::fd::{AsFd, BorrowedFd};
+use std::{
+    os::fd::{AsFd, BorrowedFd},
+    path::{Path, PathBuf},
+};
 
 /// A simple wrapper for a device node.
 pub struct Card(std::fs::File);
@@ -27,7 +30,7 @@ impl ControlDevice for Card {}
 
 /// Simple helper methods for opening a `Card`.
 impl Card {
-    pub fn open(path: &str) -> Self {
+    pub fn open(path: impl AsRef<Path>) -> Self {
         let mut options = std::fs::OpenOptions::new();
         options.read(true);
         options.write(true);
@@ -60,21 +63,15 @@ fn print_connector_info(gpu: &Card, resources: &ResourceHandles) {
     }
 }
 
-fn get_connected_connector(gpu: &Card, name: &Option<String>) -> Option<ConnectorHandle> {
-    gpu.resource_handles()
-        .expect("Failed to get GPU resource handles")
-        .connectors
-        .iter()
-        .find(|connector_handle| {
-            let force_probe = false;
-            let info = gpu
-                .get_connector(**connector_handle, force_probe)
-                .expect("Failed to get GPU connector info");
-            let name_matches =
-                if let Some(name) = name { name == &get_connector_name(&info) } else { true };
-            name_matches && info.state() == ConnectorState::Connected
-        })
-        .copied()
+fn get_connected_connectors(gpu: &Card) -> impl Iterator<Item = ConnectorInfo> + '_ {
+    let handles = gpu.resource_handles().expect("Failed to get GPU resource handles");
+    handles.connectors.into_iter().filter_map(|connector_handle| {
+        let force_probe = false;
+        let info = gpu
+            .get_connector(connector_handle, force_probe)
+            .expect("Failed to get GPU connector info");
+        (info.state() == ConnectorState::Connected).then_some(info)
+    })
 }
 
 fn connector_preferred_mode(connector_info: &ConnectorInfo) -> Option<Mode> {
@@ -95,7 +92,7 @@ const DEFAULT_CARD_PATH: &str = "/dev/dri/card0";
 struct Args {
     /// Device file representing the GPU
     #[arg(long, default_value = DEFAULT_CARD_PATH)]
-    card_path: String,
+    card_path: PathBuf,
 
     /// Connector to use, e.g. DP-1; if not provided some connected one will be selected
     #[arg(long)]
@@ -114,19 +111,28 @@ fn main() {
 
     print_connector_info(&gpu, &resources);
 
-    let Some(first_connector_handle) = get_connected_connector(&gpu, &args.connector) else {
-        if let Some(name) = &args.connector {
-            println!("Display {name} does not exist or is not connected, exiting");
+    let first_connector = {
+        let mut connectors = get_connected_connectors(&gpu);
+        let maybe_connector = if let Some(name) = &args.connector {
+            connectors.find(|info| &get_connector_name(info) == name)
         } else {
-            println!("No display connected, exiting");
-        }
-        return;
-    };
+            connectors.next()
+        };
 
-    let force_probe = false;
-    let first_connector = gpu
-        .get_connector(first_connector_handle, force_probe)
-        .expect("Failed to get GPU connector info");
+        let Some(first_connector) = maybe_connector else {
+            let card_path = args.card_path.to_string_lossy();
+            if let Some(name) = &args.connector {
+                println!(
+                    "Connector {name} does not exist or is not connected to {}, exiting",
+                    card_path
+                );
+            } else {
+                println!("No connector connected to {}, exiting", card_path);
+            }
+            return;
+        };
+        first_connector
+    };
 
     let connector_interface = first_connector.interface().as_str();
     let interface_id = first_connector.interface_id();
@@ -178,7 +184,7 @@ fn main() {
     let bits_per_pixel = 32;
     let fb = gbm.add_framebuffer(&buffer_object, depth_bits, bits_per_pixel).unwrap();
 
-    gbm.set_crtc(crtc_handle, Some(fb), (0, 0), &[first_connector_handle], Some(preferred_mode))
+    gbm.set_crtc(crtc_handle, Some(fb), (0, 0), &[first_connector.handle()], Some(preferred_mode))
         .unwrap();
 
     std::thread::sleep(std::time::Duration::from_secs(5));
