@@ -20,7 +20,30 @@ struct Args {
     connector: Option<String>,
 }
 
+fn init_glutin() {
+    use glutin::api::egl::device::Device;
+    use glutin::api::egl::display::Display;
+    let devices = Device::query_devices().expect("Failed to query devices").collect::<Vec<_>>();
+
+    for (index, device) in devices.iter().enumerate() {
+        println!(
+            "Device {}: Name: {} Vendor: {}",
+            index,
+            device.name().unwrap_or("UNKNOWN"),
+            device.vendor().unwrap_or("UNKNOWN")
+        );
+    }
+
+    let device = devices.first().expect("No available devices");
+
+    // Create a display using the device.
+    let display = unsafe { Display::with_device(device, None) }.expect("Failed to create display");
+}
+
 fn main() {
+    init_glutin();
+    return;
+
     let args = Args::parse();
 
     // TODO(bschwind) - Use libdrm to iterate over available DRM devices.
