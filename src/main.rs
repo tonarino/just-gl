@@ -7,6 +7,13 @@ use just_gl::{
 };
 use raw_window_handle::HasRawDisplayHandle;
 use std::path::PathBuf;
+use std::{
+    ffi::c_void,
+    os::fd::{AsFd, BorrowedFd},
+    path::{Path},
+};
+
+mod glutin;
 
 const DEFAULT_CARD_PATH: &str = "/dev/dri/card0";
 
@@ -21,7 +28,15 @@ struct Args {
     connector: Option<String>,
 }
 
-struct Window {}
+struct Window {
+    gbm_device: *mut c_void,
+}
+
+impl Window {
+    fn new(gbm_device: *mut c_void) -> Window {
+        Window { gbm_device }
+    }
+}
 
 mod rwh_impl {
     use super::Window;
@@ -44,39 +59,14 @@ mod rwh_impl {
             // alternative
             // RawDisplayHandle::Drm();
 
-            // We only have one display server, so we use a dummy handle that consumers can ignore
-            let handle = GbmDisplayHandle::empty();
+            let mut handle = GbmDisplayHandle::empty();
+            handle.gbm_device = self.gbm_device;
             RawDisplayHandle::Gbm(handle)
         }
     }
 }
 
-fn init_glutin() {
-    use glutin::api::egl::device::Device;
-    use glutin::api::egl::display::Display;
-    let devices = Device::query_devices().expect("Failed to query devices").collect::<Vec<_>>();
-
-    for (index, device) in devices.iter().enumerate() {
-        println!(
-            "Device {}: Name: {} Vendor: {}",
-            index,
-            device.name().unwrap_or("UNKNOWN"),
-            device.vendor().unwrap_or("UNKNOWN")
-        );
-    }
-
-    let device = devices.first().expect("No available devices");
-    let window = Window{};
-    let handle = window.raw_display_handle();
-
-    // Create a display using the device.
-    let display = unsafe { Display::with_device(device, Some(handle)) }.expect("Failed to create display");
-}
-
 fn main() {
-    init_glutin();
-    return;
-
     let args = Args::parse();
 
     // TODO(bschwind) - Use libdrm to iterate over available DRM devices.
@@ -136,6 +126,7 @@ fn main() {
     let (width, height) = (width as u32, height as u32);
 
     let gbm = GbmDevice::new(gpu).expect("Failed to create GbmDevice");
+    let window = Window::new(gbm::AsRaw::as_raw(&gbm) as *mut _);
 
     let mut buffer_object = gbm
         .create_buffer_object::<()>(
@@ -154,8 +145,9 @@ fn main() {
     let bits_per_pixel = 32;
     let fb = gbm.add_framebuffer(&buffer_object, depth_bits, bits_per_pixel).unwrap();
 
+    let _glutin_context = glutin::init(&window);
     gbm.set_crtc(crtc_handle, Some(fb), (0, 0), &[connector.handle()], Some(preferred_mode))
         .unwrap();
 
-    std::thread::sleep(std::time::Duration::from_secs(5));
+    // std::thread::sleep(std::time::Duration::from_secs(5));
 }
