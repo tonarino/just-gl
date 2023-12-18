@@ -6,3 +6,5 @@ edition = "2021"
 [dependencies]
 drm = "0.9"
 gbm = { version = "0.12", default-features = false, features = ["import-egl", "drm-support"] }
+glutin = { version = "0.30", default-features = false, features = ["egl"] }
+raw-window-handle = "0.5"

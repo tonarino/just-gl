@@ -1,3 +1,5 @@
+use raw_window_handle::GbmWindowHandle;
+use gbm::AsRaw;
 use drm::{
     control::{
         connector::{Handle as ConnectorHandle, Info as ConnectorInfo, State as ConnectorState},
@@ -10,6 +12,7 @@ use gbm::{BufferObjectFlags, Device as GbmDevice, Format as BufferFormat};
 use std::os::fd::{AsFd, BorrowedFd};
 
 /// A simple wrapper for a device node.
+#[derive(Debug)]
 pub struct Card(std::fs::File);
 
 /// Implementing [`AsFd`] is a prerequisite to implementing the traits found
@@ -140,10 +143,26 @@ fn main() {
         .create_buffer_object::<()>(
             width,
             height,
-            BufferFormat::Argb8888,
+            BufferFormat::Xrgb8888,
             BufferObjectFlags::SCANOUT | BufferObjectFlags::WRITE,
         )
         .unwrap();
+
+    // let mut display_handle = raw_window_handle::GbmDisplayHandle::empty();
+    // display_handle.gbm_device = gbm.as_raw() as _;
+    // let raw_display_handle = raw_window_handle::RawDisplayHandle::Gbm(display_handle);
+
+    // let gl_display = unsafe {
+    //     glutin::display::Display::new(
+    //         raw_display_handle,
+    //         glutin::display::DisplayApiPreference::Egl,
+    //     )
+    //     .expect("Error creating EGL display")
+    // };
+
+    // let mut window_handle = GbmWindowHandle::empty();
+    // window_handle.gbm_surface = gbm_surface.as_raw() as _;
+    // let raw_handle = raw_window_handle::RawWindowHandle::Gbm(window_handle);
 
     let buffer_data = vec![255u8; (width * height * 4) as usize];
 
