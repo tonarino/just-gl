@@ -5,6 +5,7 @@ use just_gl::{
     connector_preferred_mode, first_encoder, get_connected_connectors, get_connector_name,
     print_connector_info, Card,
 };
+use raw_window_handle::HasRawDisplayHandle;
 use std::path::PathBuf;
 
 const DEFAULT_CARD_PATH: &str = "/dev/dri/card0";
@@ -18,6 +19,36 @@ struct Args {
     /// Connector to use, e.g. DP-1; if not provided some connected one will be selected
     #[arg(long)]
     connector: Option<String>,
+}
+
+struct Window {}
+
+mod rwh_impl {
+    use super::Window;
+    use raw_window_handle::*;
+
+    unsafe impl HasRawWindowHandle for Window {
+        fn raw_window_handle(&self) -> RawWindowHandle {
+            // alternative
+            // RawWindowHandle::Drm()
+
+            let mut handle = GbmWindowHandle::empty();
+            handle.gbm_surface = std::ptr::null_mut();
+
+            RawWindowHandle::Gbm(handle)
+        }
+    }
+
+    unsafe impl HasRawDisplayHandle for Window {
+        fn raw_display_handle(&self) -> RawDisplayHandle {
+            // alternative
+            // RawDisplayHandle::Drm();
+
+            // We only have one display server, so we use a dummy handle that consumers can ignore
+            let handle = GbmDisplayHandle::empty();
+            RawDisplayHandle::Gbm(handle)
+        }
+    }
 }
 
 fn init_glutin() {
@@ -35,9 +66,11 @@ fn init_glutin() {
     }
 
     let device = devices.first().expect("No available devices");
+    let window = Window{};
+    let handle = window.raw_display_handle();
 
     // Create a display using the device.
-    let display = unsafe { Display::with_device(device, None) }.expect("Failed to create display");
+    let display = unsafe { Display::with_device(device, Some(handle)) }.expect("Failed to create display");
 }
 
 fn main() {
