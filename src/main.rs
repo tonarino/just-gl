@@ -8,6 +8,7 @@ use drm::{
     Device,
 };
 use gbm::{BufferObjectFlags, Device as GbmDevice, Format as BufferFormat};
+use raw_window_handle::HasRawDisplayHandle;
 use std::{
     os::fd::{AsFd, BorrowedFd},
     path::{Path, PathBuf},
@@ -99,6 +100,36 @@ struct Args {
     connector: Option<String>,
 }
 
+struct Window {}
+
+mod rwh_impl {
+    use super::Window;
+    use raw_window_handle::*;
+
+    unsafe impl HasRawWindowHandle for Window {
+        fn raw_window_handle(&self) -> RawWindowHandle {
+            // alternative
+            // RawWindowHandle::Drm()
+
+            let mut handle = GbmWindowHandle::empty();
+            handle.gbm_surface = std::ptr::null_mut();
+
+            RawWindowHandle::Gbm(handle)
+        }
+    }
+
+    unsafe impl HasRawDisplayHandle for Window {
+        fn raw_display_handle(&self) -> RawDisplayHandle {
+            // alternative
+            // RawDisplayHandle::Drm();
+
+            // We only have one display server, so we use a dummy handle that consumers can ignore
+            let handle = GbmDisplayHandle::empty();
+            RawDisplayHandle::Gbm(handle)
+        }
+    }
+}
+
 fn init_glutin() {
     use glutin::api::egl::device::Device;
     use glutin::api::egl::display::Display;
@@ -114,9 +145,11 @@ fn init_glutin() {
     }
 
     let device = devices.first().expect("No available devices");
+    let window = Window{};
+    let handle = window.raw_display_handle();
 
     // Create a display using the device.
-    let display = unsafe { Display::with_device(device, None) }.expect("Failed to create display");
+    let display = unsafe { Display::with_device(device, Some(handle)) }.expect("Failed to create display");
 }
 
 fn main() {

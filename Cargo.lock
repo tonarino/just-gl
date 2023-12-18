@@ -359,6 +359,7 @@ dependencies = [
  "drm",
  "gbm",
  "glutin",
+ "raw-window-handle",
 ]
 
 [[package]]
