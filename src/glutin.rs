@@ -8,10 +8,11 @@ use glutin::{
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 use std::num::NonZeroU32;
 
-// TODO(mbernat): SAFETY
-// NOTE(mbernat): This is a Frankestein glutin/glium init function that I created because it's the easiest
+// NOTE(mbernat): This is a Frankenstein glutin/glium init function that I created because it's the easiest
 // approach I found, not being familiar with either create. We should probably get rid of the glium bits here.
 pub(crate) fn init(window: &crate::Window) -> GliumDisplay<WindowSurface> {
+    // TODO(mbernat): Check unsafe usage in this function
+
     let display_handle = window.raw_display_handle();
     let display = unsafe {
         glutin::display::Display::new(display_handle, glutin::display::DisplayApiPreference::Egl)
