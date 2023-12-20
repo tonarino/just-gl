@@ -181,7 +181,8 @@ struct Window {
 impl Window {
     fn new(drm_display: DrmDisplay) -> Window {
         let format = BufferFormat::Argb8888;
-        // NOTE(mbernat): This should be used with create_surface() on drivers that support it (not nvidia)
+        // NOTE(mbernat): This should be used with create_surface()
+        // on drivers that support it (not nvidia)
         // let usage = BufferObjectFlags::SCANOUT | BufferObjectFlags::RENDERING;
         let modifiers = std::iter::once(Modifier::Linear);
         let gbm_surface: Surface<BufferObject<()>> = drm_display
@@ -192,10 +193,11 @@ impl Window {
         Window { gbm_surface, drm_display }
     }
 
-    // TODO(mbernat): Add a "Frame" abstraction that calls `swap_buffers` internally
-    // when it's finished (just like glium's Frame does) so that users don't need to bother with this.
+    // TODO(mbernat): Add a "Frame" abstraction that calls `swap_buffers` internally when
+    // it's finished (just like glium's Frame does) so that users don't need to bother with this.
 
-    // SAFETY: this must be called exactly once after `eglSwapBuffers`, which happens e.g. in `Frame::finish()`.
+    // SAFETY: this must be called exactly once after `eglSwapBuffers`,
+    // which happens e.g. in `Frame::finish()`.
     unsafe fn swap_buffers(&self) {
         // TODO(mbernat): move this elsewhere
         let depth_bits = 24;
@@ -226,11 +228,13 @@ impl Window {
 
 mod rwh_impl {
     /* SAFETY NOTICE
-    Safety of these implementations is not enforced statically, it just happens to be the case right now because we control everything.
-    If we were providing this code as a library the user could easily drop the display or window and then try rendering to them.
+    Safety of these implementations is not enforced statically, it just happens to be the case
+    right now because we control everything. If we were providing this code as a library the user
+    could easily drop the display or window and then try rendering to them.
+
     To make this safer, one should tie together window's and handle's lifetimes.
     I believe raw-window-handle 0.6 does that by providing safe versions of these traits [1], [2].
-    Unfortunately, glutin 0.30 is on version rwh 0.5 (as is wgpu 0.18; only winit 0.29 supports the new version).
+    Unfortunately, glutin 0.30 uses rwh version 0.5.
 
     [1] https://docs.rs/raw-window-handle/0.6.0/raw_window_handle/trait.HasDisplayHandle.html
     [2] https://docs.rs/raw-window-handle/0.6.0/raw_window_handle/trait.HasWindowHandle.html
