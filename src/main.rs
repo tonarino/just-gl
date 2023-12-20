@@ -1,4 +1,5 @@
 use clap::Parser;
+<<<<<<< HEAD
 use drm::{
     control::{
         connector::{Info as ConnectorInfo, State as ConnectorState},
@@ -89,6 +90,15 @@ fn connector_preferred_mode(connector_info: &ConnectorInfo) -> Option<Mode> {
 fn first_encoder(connector_info: &ConnectorInfo) -> Option<EncoderHandle> {
     connector_info.encoders().iter().next().copied()
 }
+=======
+use drm::{control::Device as ControlDevice, Device};
+use gbm::{BufferObjectFlags, Device as GbmDevice, Format as BufferFormat};
+use just_gl::{
+    connector_preferred_mode, first_encoder, get_connected_connectors, get_connector_name,
+    print_connector_info, Card,
+};
+use std::path::PathBuf;
+>>>>>>> db7937d (Librarify (#13))
 
 const DEFAULT_CARD_PATH: &str = "/dev/dri/card0";
 
