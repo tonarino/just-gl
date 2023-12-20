@@ -1,7 +1,8 @@
 use clap::Parser;
 use drm::{
     control::{
-        connector::Info as ConnectorInfo, crtc::Info as CrtcInfo, Device as ControlDevice, Mode,
+        connector::Info as ConnectorInfo, crtc::Info as CrtcInfo,
+        framebuffer::Handle as FramebufferHandle, Device as ControlDevice, Mode,
     },
     Device,
 };
@@ -96,6 +97,12 @@ impl DrmDisplay {
         let gbm_device = GbmDevice::new(gpu).expect("Failed to create GbmDevice");
         Some(DrmDisplay { gbm_device, crtc, connector, mode, width, height })
     }
+
+    fn display_framebuffer(&self, fb: Option<FramebufferHandle>) {
+        self.gbm_device
+            .set_crtc(self.crtc.handle(), fb, (0, 0), &[self.connector.handle()], Some(self.mode))
+            .expect("set_crtc failed");
+    }
 }
 
 struct Window {
@@ -137,17 +144,13 @@ impl Window {
             .gbm_device
             .add_framebuffer(&buffer_object, depth_bits, bits_per_pixel)
             .unwrap();
-        self.drm_display
-            .gbm_device
-            .set_crtc(
-                self.drm_display.crtc.handle(),
-                Some(fb),
-                (0, 0),
-                &[self.drm_display.connector.handle()],
-                Some(self.drm_display.mode),
-            )
-            .unwrap();
+
+        self.drm_display.display_framebuffer(Some(fb));
         // TODO(mbernat): Subsequent mode setting should be done with gbm_device.page_flip()
+    }
+
+    fn restore_original_display(&self) {
+        self.drm_display.display_framebuffer(self.drm_display.crtc.framebuffer());
     }
 }
 
@@ -201,5 +204,9 @@ fn main() {
     // SAFETY: eglSwapBuffers is called by `frame.finish()`
     unsafe { window.swap_buffers() };
 
-    std::thread::sleep(std::time::Duration::from_secs(3));
+    std::thread::sleep(std::time::Duration::from_secs(2));
+
+    // NOTE(mbernat): It would be nice to invoke this in Window's drop method but the function
+    // can panic and gbm_device is not UnwindSafe, so even catch_unwind doesn't help.
+    window.restore_original_display();
 }
