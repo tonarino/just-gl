@@ -15,6 +15,7 @@ use std::{
     path::{Path, PathBuf},
 };
 mod glutin;
+mod triangle;
 
 /// A simple wrapper for a device node.
 pub struct Card(std::fs::File);
@@ -301,6 +302,8 @@ fn main() {
     let glium_display = glutin::init(&window);
 
     use glium::Surface;
+    let mut triangle = triangle::Triangle::new(&glium_display);
+
     let refresh_rate = 60;
     let frame_duration = 1.0 / refresh_rate as f64;
     let count = refresh_rate;
@@ -309,6 +312,7 @@ fn main() {
         let ratio = i as f32 / count as f32;
         let mut frame = glium_display.draw();
         frame.clear_color(0.2 * ratio, 0.0, 0.5, 1.0);
+        triangle.draw(&mut frame);
         frame.finish().unwrap();
         // SAFETY: eglSwapBuffers is called by `frame.finish()`
         unsafe { window.swap_buffers() };
