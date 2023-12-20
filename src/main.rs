@@ -37,7 +37,7 @@ struct DrmDisplay {
 }
 
 impl DrmDisplay {
-    fn init(args: &Args) -> Option<DrmDisplay> {
+    fn new(args: &Args) -> Option<DrmDisplay> {
         // TODO(bschwind) - Use libdrm to iterate over available DRM devices.
         let gpu = Card::open(&args.card_path);
         dbg!(gpu.get_driver().expect("Failed to get GPU driver info"));
@@ -117,12 +117,16 @@ impl Window {
         Window { gbm_surface, drm_display }
     }
 
-    fn swap_buffers(&self) {
+    // TODO(mbernat): Add a "Frame" abstraction that calls `swap_buffers` internally
+    // when it's finished (just like glium's Frame does) so that users don't need to bother with this.
+
+    // SAFETY: this must be called exactly once after `eglSwapBuffers`, which happens e.g. in `Frame::finish()`.
+    unsafe fn swap_buffers(&self) {
         // TODO(mbernat): move this elsewhere
         let depth_bits = 24;
         let bits_per_pixel = 32;
 
-        // SAFETY: this must be called exactly once after `eglSwapBuffers`, which happens in `frame.finish()`.
+        // SAFETY: we offloaded the `lock_front_buffer()` precondition to our caller
         let buffer_object = unsafe { self.gbm_surface.lock_front_buffer().unwrap() };
         // TODO(mbernat): We should recycle framebuffers;
         // one can store an FB handle in buffer object's user_data() and reuse it when it exists
@@ -146,6 +150,17 @@ impl Window {
 }
 
 mod rwh_impl {
+    /* SAFETY NOTICE
+    Safety of these implementations is not enforced statically, it just happens to be the case right now because we control everything.
+    If we were providing this code as a library the user could easily drop the display or window and then try rendering to them.
+    To make this safer, one should tie together window's and handle's lifetimes.
+    I believe raw-window-handle 0.6 does that by providing safe versions of these traits [1], [2].
+    Unfortunately, glutin 0.30 is on version rwh 0.5 (as is wgpu 0.18; only winit 0.29 supports the new version).
+
+    [1] https://docs.rs/raw-window-handle/0.6.0/raw_window_handle/trait.HasDisplayHandle.html
+    [2] https://docs.rs/raw-window-handle/0.6.0/raw_window_handle/trait.HasWindowHandle.html
+    */
+
     use super::Window;
     use gbm::AsRaw;
     use raw_window_handle::*;
@@ -171,16 +186,16 @@ mod rwh_impl {
 
 fn main() {
     let args = Args::parse();
-    let drm_display = DrmDisplay::init(&args).unwrap();
+    let drm_display = DrmDisplay::new(&args).unwrap();
     let window = Window::new(drm_display);
     let glium_display = glutin::init(&window);
-    {
-        use glium::Surface;
-        let mut frame = glium_display.draw();
-        frame.clear_color(0.2, 0.0, 0.5, 1.0);
-        frame.finish().unwrap();
-        window.swap_buffers();
-    }
+
+    use glium::Surface;
+    let mut frame = glium_display.draw();
+    frame.clear_color(0.2, 0.0, 0.5, 1.0);
+    frame.finish().unwrap();
+    // SAFETY: eglSwapBuffers is called by `frame.finish()`
+    unsafe { window.swap_buffers() };
 
     std::thread::sleep(std::time::Duration::from_secs(3));
 }
