@@ -12,7 +12,7 @@ use drm::{
 use gbm::{BufferObject, Device as GbmDevice, Format as BufferFormat, Modifier, Surface};
 use std::{
     os::fd::{AsFd, BorrowedFd},
-    path::{Path, PathBuf}, panic::catch_unwind,
+    path::{Path, PathBuf},
 };
 mod glutin;
 
@@ -173,15 +173,8 @@ impl DrmDisplay {
     }
 
     fn display_framebuffer(&self, fb: Option<FramebufferHandle>) {
-        self
-            .gbm_device
-            .set_crtc(
-                self.crtc.handle(),
-                fb,
-                (0, 0),
-                &[self.connector.handle()],
-                Some(self.mode),
-            )
+        self.gbm_device
+            .set_crtc(self.crtc.handle(), fb, (0, 0), &[self.connector.handle()], Some(self.mode))
             .expect("set_crtc failed");
     }
 }
