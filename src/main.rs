@@ -1,4 +1,5 @@
 use clap::Parser;
+use color_eyre::eyre::Result;
 use drm::{
     control::{
         connector::{Info as ConnectorInfo, State as ConnectorState},
@@ -14,6 +15,7 @@ use std::{
     os::fd::{AsFd, BorrowedFd},
     path::{Path, PathBuf},
 };
+use thiserror::Error;
 mod glutin;
 
 /// A simple wrapper for a device node.
@@ -111,10 +113,13 @@ struct DrmDisplay {
     height: u32,
 }
 
+#[derive(Error, Debug)]
+struct DrmDisplayError {}
+
 impl DrmDisplay {
-    fn new(args: &Args) -> Option<DrmDisplay> {
+    fn new(args: &Args) -> Result<DrmDisplay, DrmDisplayError> {
         // TODO(bschwind) - Use libdrm to iterate over available DRM devices.
-        let gpu = Card::open(&args.card_path);
+        let gpu = Card::open(&args.card_path)?;
         dbg!(gpu.get_driver().expect("Failed to get GPU driver info"));
         dbg!(gpu.get_bus_id().expect("Failed to get GPU bus ID"));
 
@@ -294,7 +299,9 @@ mod rwh_impl {
     }
 }
 
-fn main() {
+fn main() -> Result<()> {
+    color_eyre::install()?;
+
     let args = Args::parse();
     let drm_display = DrmDisplay::new(&args).unwrap();
     let mut window = Window::new(drm_display);
@@ -319,4 +326,6 @@ fn main() {
     // NOTE(mbernat): It would be nice to invoke this in Window's drop method but the function
     // can panic and gbm_device is not UnwindSafe, so even catch_unwind doesn't help.
     window.restore_original_display();
+
+    Ok(())
 }
