@@ -1,6 +1,5 @@
 use clap::Parser;
 use just_gl::triangle::Triangle;
-use just_gl::gl;
 use std::path::PathBuf;
 
 const DEFAULT_CARD_PATH: &str = "/dev/dri/card0";
