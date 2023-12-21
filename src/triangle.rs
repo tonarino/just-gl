@@ -14,6 +14,7 @@ pub struct Triangle {
     vertex_buffer: glium::VertexBuffer<Vertex>,
     index_buffer: glium::IndexBuffer<u16>,
     program: glium::Program,
+    rotation: f32,
 }
 
 impl Triangle {
@@ -65,20 +66,18 @@ impl Triangle {
         )
         .unwrap();
 
-        Self { vertex_buffer, index_buffer, program }
+        Self { vertex_buffer, index_buffer, program, rotation: 0.0 }
     }
 
     pub fn draw(&mut self, frame: &mut Frame) {
         use glium::Surface;
 
+        let matrix = glam::Mat4::from_rotation_z(self.rotation).to_cols_array_2d();
+        self.rotation += 0.01;
+
         // For this example a simple identity matrix suffices
         let uniforms = uniform! {
-            matrix: [
-                [1.0, 0.0, 0.0, 0.0],
-                [0.0, 1.0, 0.0, 0.0],
-                [0.0, 0.0, 1.0, 0.0],
-                [0.0, 0.0, 0.0, 1.0f32]
-            ]
+            matrix: matrix,
         };
 
         // Now we can draw the triangle
