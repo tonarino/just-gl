@@ -1,5 +1,7 @@
 use crate::drm::DrmDisplay;
-use drm::control::{framebuffer::Handle as FramebufferHandle, Device as ControlDevice, Event};
+use drm::control::{
+    framebuffer::Handle as FramebufferHandle, Device as ControlDevice, Event, PageFlipEvent,
+};
 use gbm::{BufferObjectFlags, Format as BufferFormat, Surface};
 
 pub struct Window {
@@ -31,13 +33,10 @@ impl Window {
         Window { gbm_surface, drm_display, frame_count: 0 }
     }
 
-    // TODO(mbernat): Add a "Frame" abstraction that calls `swap_buffers` internally when
-    // it's finished (just like glium's Frame does) so that users don't need to bother with this.
-
     /// # Safety
     /// this must be called exactly once after `eglSwapBuffers`,
     /// which happens e.g. in `Frame::finish()`.
-    pub unsafe fn swap_buffers(&mut self) {
+    unsafe fn swap_buffers(&mut self) {
         // TODO(mbernat): move this elsewhere
         let depth_bits = 24;
         let bits_per_pixel = 32;
@@ -75,28 +74,25 @@ impl Window {
     pub fn draw(&mut self, drawer: impl Fn()) {
         // The first page flip is scheduled after frame #1 (which is the second frame)
         // Yes, this is very stupid, just testing if it works
+
         if self.frame_count > 1 {
             let mut events =
                 self.drm_display.gbm_device.receive_events().expect("Could not receive events");
 
-            for event in events {
-                match event {
-                    Event::PageFlip(drm::control::PageFlipEvent { frame, duration, crtc }) => {
-                        println!("PageFlip {frame} {duration:?} {crtc:?}");
-                    },
-                    Event::Vblank(event) => {
-                        println!("Vblank");
-                    },
-                    _ => {},
+            if !events.any(|event| {
+                if let Event::PageFlip(PageFlipEvent { crtc, .. }) = event {
+                    crtc == self.drm_display.crtc.handle()
+                } else {
+                    false
                 }
+            }) {
+                return;
             }
         }
 
         drawer();
         // SAFETY: eglSwapBuffers is called by `frame.finish()`
         unsafe { self.swap_buffers() };
-
-        //std::thread::sleep(std::time::Duration::from_secs_f64(0.02));
     }
 }
 

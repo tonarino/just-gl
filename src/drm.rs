@@ -4,7 +4,7 @@ use drm::{
         crtc::Info as CrtcInfo,
         encoder::Handle as EncoderHandle,
         framebuffer::Handle as FramebufferHandle,
-        Device as ControlDevice, Event, Mode, ModeTypeFlags, PageFlipFlags, ResourceHandles,
+        Device as ControlDevice, Mode, ModeTypeFlags, PageFlipFlags, ResourceHandles,
     },
     Device,
 };
