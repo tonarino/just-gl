@@ -12,6 +12,3 @@ glium = "0.33"
 glutin = "0.30"
 # Glutin 0.30 depends on rwh 0.5
 raw-window-handle = "0.5"
-
-[[example]]
-name = "colors"
