@@ -4,7 +4,7 @@ use drm::{
         crtc::Info as CrtcInfo,
         encoder::Handle as EncoderHandle,
         framebuffer::Handle as FramebufferHandle,
-        Device as ControlDevice, Mode, ModeTypeFlags, PageFlipFlags, ResourceHandles,
+        Device as ControlDevice, Event, Mode, ModeTypeFlags, PageFlipFlags, ResourceHandles,
     },
     Device,
 };
@@ -164,10 +164,10 @@ impl DrmDisplay {
     }
 
     pub(crate) fn page_flip(&self, fb: FramebufferHandle) {
-        let flags = PageFlipFlags::empty();
+        let flags = PageFlipFlags::EVENT;
         let target_sequence = None;
         self.gbm_device
             .page_flip(self.crtc.handle(), fb, flags, target_sequence)
-            .expect("Failed to flip page");
+            .expect("Failed to schedule a page flip");
     }
 }

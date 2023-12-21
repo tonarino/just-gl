@@ -1,5 +1,5 @@
 use crate::drm::DrmDisplay;
-use drm::control::{framebuffer::Handle as FramebufferHandle, Device as ControlDevice};
+use drm::control::{framebuffer::Handle as FramebufferHandle, Device as ControlDevice, Event};
 use gbm::{BufferObjectFlags, Format as BufferFormat, Surface};
 
 pub struct Window {
@@ -70,6 +70,31 @@ impl Window {
 
     pub fn restore_original_display(&self) {
         self.drm_display.set_mode_with_framebuffer(self.drm_display.crtc.framebuffer());
+    }
+
+    pub fn draw(&mut self, drawer: impl Fn()) {
+        if self.crtc_set {
+            let mut events =
+                self.drm_display.gbm_device.receive_events().expect("Could not receive events");
+
+            for event in events {
+                match event {
+                    Event::PageFlip(drm::control::PageFlipEvent { frame, duration, crtc }) => {
+                        println!("PageFlip {frame} {duration:?} {crtc:?}");
+                    },
+                    Event::Vblank(event) => {
+                        println!("Vblank");
+                    },
+                    _ => {},
+                }
+            }
+        }
+
+        drawer();
+        // SAFETY: eglSwapBuffers is called by `frame.finish()`
+        unsafe { self.swap_buffers() };
+
+        //std::thread::sleep(std::time::Duration::from_secs_f64(0.02));
     }
 }
 
