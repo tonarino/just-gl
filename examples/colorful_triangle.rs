@@ -26,8 +26,8 @@ fn main() {
     let glium_display = gl::init(&window);
 
     let refresh_rate = 60;
-    let count = 2;
     let now = std::time::SystemTime::now();
+    let count = 60;
     for i in 0..count {
         window.draw(|| {
             use glium::Surface;
@@ -38,9 +38,4 @@ fn main() {
             frame.finish().unwrap();
         });
     }
-    println!("Duration: {:?}", std::time::SystemTime::now().duration_since(now));
-
-    // NOTE(mbernat): It would be nice to invoke this in Window's drop method but the function
-    // can panic and gbm_device is not UnwindSafe, so even catch_unwind doesn't help.
-    window.restore_original_display();
 }
