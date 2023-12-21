@@ -1,7 +1,6 @@
 /// Taken from https://github.com/glium/glium/blob/master/examples/triangle.rs
-
 use glium::index::PrimitiveType;
-use glium::{Frame, Display, implement_vertex, uniform, program};
+use glium::{implement_vertex, program, uniform, Display, Frame};
 use glutin::surface::WindowSurface;
 
 #[derive(Copy, Clone)]
@@ -23,18 +22,9 @@ impl Triangle {
             glium::VertexBuffer::new(
                 display,
                 &[
-                    Vertex {
-                        position: [-0.5, -0.5],
-                        color: [0.0, 1.0, 0.0],
-                    },
-                    Vertex {
-                        position: [0.0, 0.5],
-                        color: [0.0, 0.0, 1.0],
-                    },
-                    Vertex {
-                        position: [0.5, -0.5],
-                        color: [1.0, 0.0, 0.0],
-                    },
+                    Vertex { position: [-0.5, -0.5], color: [0.0, 1.0, 0.0] },
+                    Vertex { position: [0.0, 0.5], color: [0.0, 0.0, 1.0] },
+                    Vertex { position: [0.5, -0.5], color: [1.0, 0.0, 0.0] },
                 ],
             )
             .unwrap()
@@ -75,11 +65,7 @@ impl Triangle {
         )
         .unwrap();
 
-        Self {
-            vertex_buffer,
-            index_buffer,
-            program,
-        }
+        Self { vertex_buffer, index_buffer, program }
     }
 
     pub fn draw(&mut self, frame: &mut Frame) {

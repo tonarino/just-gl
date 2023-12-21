@@ -71,11 +71,12 @@ impl Window {
         self.drm_display.set_mode_with_framebuffer(self.drm_display.crtc.framebuffer());
     }
 
-    pub fn draw(&mut self, drawer: impl Fn()) {
-        // The first page flip is scheduled after frame #1 (which is the second frame)
-        // Yes, this is very stupid, just testing if it works
-
-        if self.frame_count > 1 {
+    /// # Safety
+    /// `drawer` has to call eglSwapBuffers as a last step
+    pub unsafe fn draw(&mut self, drawer: impl Fn()) {
+        // The first page flip is scheduled after the second frame, so we start
+        // waiting for events afterwards.
+        if self.frame_count >= 2 {
             let mut events =
                 self.drm_display.gbm_device.receive_events().expect("Could not receive events");
 
@@ -86,12 +87,14 @@ impl Window {
                     false
                 }
             }) {
+                println!("No page flip found");
                 return;
             }
         }
 
+        println!("Drawing frame {}", self.frame_count);
         drawer();
-        // SAFETY: eglSwapBuffers is called by `frame.finish()`
+        // SAFETY: eglSwapBuffers is called as the last step in `drawer`.
         unsafe { self.swap_buffers() };
     }
 }
