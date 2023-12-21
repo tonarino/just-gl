@@ -23,10 +23,7 @@ fn main() {
     let mut window = just_gl::window::Window::new(drm_display);
     let glium_display = just_gl::gl::init(&window);
     let mut triangle = Triangle::new(&glium_display);
-    let glium_display = gl::init(&window);
 
-    let refresh_rate = 60;
-    let now = std::time::SystemTime::now();
     let count = 60;
     for i in 0..count {
         window.draw(|| {

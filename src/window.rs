@@ -71,7 +71,7 @@ impl Window {
         self.drm_display.set_mode_with_framebuffer(self.drm_display.crtc.framebuffer());
     }
 
-    pub fn draw(&mut self, drawer: impl Fn()) {
+    pub fn draw(&mut self, mut drawer: impl FnMut()) {
         // The first page flip is scheduled after frame #1 (which is the second frame)
         // Yes, this is very stupid, just testing if it works
 
