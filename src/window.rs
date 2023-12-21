@@ -5,7 +5,7 @@ use gbm::{BufferObjectFlags, Format as BufferFormat, Surface};
 pub struct Window {
     pub(crate) gbm_surface: Surface<FramebufferHandle>,
     pub(crate) drm_display: DrmDisplay,
-    pub(crate) crtc_set: bool,
+    pub(crate) frame_count: usize,
 }
 
 impl Window {
@@ -28,7 +28,7 @@ impl Window {
             .create_surface(drm_display.width, drm_display.height, format, usage)
             .unwrap();
 
-        Window { gbm_surface, drm_display, crtc_set: false }
+        Window { gbm_surface, drm_display, frame_count: 0 }
     }
 
     // TODO(mbernat): Add a "Frame" abstraction that calls `swap_buffers` internally when
@@ -60,12 +60,12 @@ impl Window {
             fb
         };
 
-        if !self.crtc_set {
-            self.crtc_set = true;
+        if self.frame_count == 0 {
             self.drm_display.set_mode_with_framebuffer(Some(fb));
         } else {
             self.drm_display.page_flip(fb);
         }
+        self.frame_count += 1;
     }
 
     pub fn restore_original_display(&self) {
@@ -73,7 +73,9 @@ impl Window {
     }
 
     pub fn draw(&mut self, drawer: impl Fn()) {
-        if self.crtc_set {
+        // The first page flip is scheduled after frame #1 (which is the second frame)
+        // Yes, this is very stupid, just testing if it works
+        if self.frame_count > 1 {
             let mut events =
                 self.drm_display.gbm_device.receive_events().expect("Could not receive events");
 
