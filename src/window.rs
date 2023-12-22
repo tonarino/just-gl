@@ -78,8 +78,10 @@ impl Window {
         if self.frame_count > 1 {
             let mut events =
                 self.drm_display.gbm_device.receive_events().expect("Could not receive events");
+            let events_vec: Vec<_> = events.collect();
+            println!("{}", events_vec.len());
 
-            if !events.any(|event| {
+            if !events_vec.into_iter().any(|event| {
                 if let Event::PageFlip(PageFlipEvent { crtc, .. }) = event {
                     crtc == self.drm_display.crtc.handle()
                 } else {
@@ -89,6 +91,11 @@ impl Window {
                 return;
             }
         }
+
+            let mut events2 =
+                self.drm_display.gbm_device.receive_events().expect("Could not receive events");
+            println!("{}", events2.count());
+
 
         drawer();
         // SAFETY: eglSwapBuffers is called by `frame.finish()`
