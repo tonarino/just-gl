@@ -1,6 +1,6 @@
 use clap::Parser;
 use just_gl::triangle::Triangle;
-use std::{path::PathBuf, time::Duration};
+use std::path::PathBuf;
 
 const DEFAULT_CARD_PATH: &str = "/dev/dri/card0";
 
@@ -23,7 +23,7 @@ fn main() {
     let glium_display = just_gl::gl::init(&window);
     let mut triangle = Triangle::new(&glium_display);
 
-    let count = 3;
+    let count = 60;
     for i in 0..count {
         window.draw(|| {
             use glium::Surface;
@@ -33,7 +33,6 @@ fn main() {
             triangle.draw(&mut frame);
             frame.finish().unwrap();
         });
-        // std::thread::sleep(Duration::from_millis(20))
     }
 
     window.restore_original_display();

@@ -1,13 +1,12 @@
 use crate::drm::DrmDisplay;
-use drm::control::{
-    framebuffer::Handle as FramebufferHandle, Device as ControlDevice, Event, PageFlipEvent,
-};
-use gbm::{BufferObjectFlags, Format as BufferFormat, Surface};
+use drm::control::{framebuffer::Handle as FramebufferHandle, Device as ControlDevice};
+use gbm::{BufferObject, BufferObjectFlags, Format as BufferFormat, Surface};
 
 pub struct Window {
     pub(crate) gbm_surface: Surface<FramebufferHandle>,
     pub(crate) drm_display: DrmDisplay,
     pub(crate) frame_count: usize,
+    previous_bo: Option<BufferObject<FramebufferHandle>>,
 }
 
 impl Window {
@@ -30,13 +29,13 @@ impl Window {
             .create_surface(drm_display.width, drm_display.height, format, usage)
             .unwrap();
 
-        Window { gbm_surface, drm_display, frame_count: 0 }
+        Window { gbm_surface, drm_display, frame_count: 0, previous_bo: None }
     }
 
     /// # Safety
     /// this must be called exactly once after `eglSwapBuffers`,
     /// which happens e.g. in `Frame::finish()`.
-    unsafe fn swap_buffers(&mut self) {
+    unsafe fn present(&mut self) {
         // TODO(mbernat): move this elsewhere
         let depth_bits = 24;
         let bits_per_pixel = 32;
@@ -60,46 +59,45 @@ impl Window {
         };
 
         if self.frame_count == 0 {
+            // NOTE(mbernat): It's possible to avoid initial mode setting
+            // since we're keeping the previous mode: we could just call page_flip directly.
             self.drm_display.set_mode_with_framebuffer(Some(fb));
         } else {
             self.drm_display.page_flip(fb);
         }
+
+        // NOTE(mbernat): This buffer object returns to the surface's queue upon destruction.
+        // If we were to release it here, it would be again available from
+        // `Surface::lock_front_buffer()` next and the app would be effectively single-buffered.
+        // So, we keep it around for one frame, which is fine for double buffering.
+        self.previous_bo.replace(buffer_object);
+
         self.frame_count += 1;
     }
 
     pub fn restore_original_display(&self) {
-        self.drm_display.set_mode_with_framebuffer(self.drm_display.crtc.framebuffer());
+        let handle = self.drm_display.crtc.framebuffer().unwrap();
+        if self.drm_display.gbm_device.get_framebuffer(handle).is_ok() {
+            self.drm_display.set_mode_with_framebuffer(self.drm_display.crtc.framebuffer());
+        }
     }
 
     pub fn draw(&mut self, mut drawer: impl FnMut()) {
+        drawer();
+        // SAFETY: eglSwapBuffers is called by `frame.finish()` in drawer()
+        unsafe { self.present() };
+
         // The first page flip is scheduled after frame #1 (which is the second frame)
         // Yes, this is very stupid, just testing if it works
 
         if self.frame_count > 1 {
-            let mut events =
+            let _events =
                 self.drm_display.gbm_device.receive_events().expect("Could not receive events");
-            let events_vec: Vec<_> = events.collect();
-            println!("{}", events_vec.len());
 
-            if !events_vec.into_iter().any(|event| {
-                if let Event::PageFlip(PageFlipEvent { crtc, .. }) = event {
-                    crtc == self.drm_display.crtc.handle()
-                } else {
-                    false
-                }
-            }) {
-                return;
-            }
+            // TODO(mbernat): We could do additional processing
+            // on these events if they report page flips that we scheduled
+            // but with the current setup there is nothing we need to do.
         }
-
-            let mut events2 =
-                self.drm_display.gbm_device.receive_events().expect("Could not receive events");
-            println!("{}", events2.count());
-
-
-        drawer();
-        // SAFETY: eglSwapBuffers is called by `frame.finish()`
-        unsafe { self.swap_buffers() };
     }
 }
 
