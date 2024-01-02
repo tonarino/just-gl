@@ -157,17 +157,23 @@ impl DrmDisplay {
         Some(DrmDisplay { gbm_device, crtc, connector, mode, width, height })
     }
 
-    pub(crate) fn set_mode_with_framebuffer(&self, fb: Option<FramebufferHandle>) {
+    pub(crate) fn set_mode_with_framebuffer(&self, fb: FramebufferHandle) {
         self.gbm_device
-            .set_crtc(self.crtc.handle(), fb, (0, 0), &[self.connector.handle()], Some(self.mode))
+            .set_crtc(
+                self.crtc.handle(),
+                Some(fb),
+                (0, 0),
+                &[self.connector.handle()],
+                Some(self.mode),
+            )
             .expect("set_crtc failed");
     }
 
-    pub(crate) fn page_flip(&self, fb: FramebufferHandle) {
-        let flags = PageFlipFlags::empty();
+    pub(crate) fn schedule_page_flip(&self, fb: FramebufferHandle) {
+        let flags = PageFlipFlags::EVENT;
         let target_sequence = None;
         self.gbm_device
             .page_flip(self.crtc.handle(), fb, flags, target_sequence)
-            .expect("Failed to flip page");
+            .expect("Failed to schedule a page flip");
     }
 }

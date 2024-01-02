@@ -17,30 +17,23 @@ struct Args {
 
 fn main() {
     let args = Args::parse();
-    let drm_display =
-        just_gl::drm::DrmDisplay::new(&args.card_path, args.connector.as_ref()).unwrap();
+    let drm_display = just_gl::drm::DrmDisplay::new(&args.card_path, args.connector.as_ref())
+        .expect("Could not create a `DrmDisplay`");
     let mut window = just_gl::window::Window::new(drm_display);
     let glium_display = just_gl::gl::init(&window);
     let mut triangle = Triangle::new(&glium_display);
 
-    let refresh_rate = 60;
-    let frame_duration = 1.0 / refresh_rate as f64;
-    let count = refresh_rate;
-    let now = std::time::SystemTime::now();
+    let count = 60;
     for i in 0..count {
         use glium::Surface;
         let ratio = i as f32 / count as f32;
         let mut frame = glium_display.draw();
         frame.clear_color(0.2 * ratio, 0.0, 0.5, 1.0);
         triangle.draw(&mut frame);
-        frame.finish().unwrap();
-        // SAFETY: eglSwapBuffers is called by `frame.finish()`
-        unsafe { window.swap_buffers() };
-        std::thread::sleep(std::time::Duration::from_secs_f64(frame_duration));
+        frame.finish().expect("Could not finish the frame");
+        // SAFETY: frame.finish() above takes care of swapping buffers correctly.
+        unsafe { window.present() }
     }
-    println!("Duration: {:?}", std::time::SystemTime::now().duration_since(now));
 
-    // NOTE(mbernat): It would be nice to invoke this in Window's drop method but the function
-    // can panic and gbm_device is not UnwindSafe, so even catch_unwind doesn't help.
     window.restore_original_display();
 }
