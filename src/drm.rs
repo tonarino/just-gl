@@ -157,9 +157,15 @@ impl DrmDisplay {
         Some(DrmDisplay { gbm_device, crtc, connector, mode, width, height })
     }
 
-    pub(crate) fn set_mode_with_framebuffer(&self, fb: Option<FramebufferHandle>) {
+    pub(crate) fn set_mode_with_framebuffer(&self, fb: FramebufferHandle) {
         self.gbm_device
-            .set_crtc(self.crtc.handle(), fb, (0, 0), &[self.connector.handle()], Some(self.mode))
+            .set_crtc(
+                self.crtc.handle(),
+                Some(fb),
+                (0, 0),
+                &[self.connector.handle()],
+                Some(self.mode),
+            )
             .expect("set_crtc failed");
     }
 

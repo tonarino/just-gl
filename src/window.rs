@@ -2,11 +2,21 @@ use crate::drm::DrmDisplay;
 use drm::control::{framebuffer::Handle as FramebufferHandle, Device as ControlDevice};
 use gbm::{BufferObject, BufferObjectFlags, Format as BufferFormat, Surface};
 
+enum DisplayState {
+    Init,
+    ModeSet { _buffer_object: BufferObject<FramebufferHandle> },
+    PageFlipped { _buffer_object: BufferObject<FramebufferHandle> },
+}
+
 pub struct Window {
     pub(crate) gbm_surface: Surface<FramebufferHandle>,
     pub(crate) drm_display: DrmDisplay,
-    pub(crate) frame_count: usize,
-    previous_bo: Option<BufferObject<FramebufferHandle>>,
+    // NOTE(mbernat): Buffer objects obtained from a surface
+    // return to the surface's queue when dropped.
+    //
+    // Unfortunately, this behavior is not very well documented,
+    // see `Surface::lock_front_buffer()` implementation for details.
+    display_state: DisplayState,
 }
 
 impl Window {
@@ -20,28 +30,34 @@ impl Window {
         let gbm_surface: Surface<FramebufferHandle> = drm_display
             .gbm_device
             .create_surface_with_modifiers(drm_display.width, drm_display.height, format, modifiers)
-            .unwrap();
+            .expect("Could not create a GBM surface");
         */
 
         let usage = BufferObjectFlags::SCANOUT | BufferObjectFlags::RENDERING;
         let gbm_surface: Surface<FramebufferHandle> = drm_display
             .gbm_device
             .create_surface(drm_display.width, drm_display.height, format, usage)
-            .unwrap();
+            .expect("Could not create a GBM surface");
 
-        Window { gbm_surface, drm_display, frame_count: 0, previous_bo: None }
+        Window { gbm_surface, drm_display, display_state: DisplayState::Init } //, frame_count: 0, previous_buffer_object: None }
     }
 
     /// # Safety
-    /// this must be called exactly once after `eglSwapBuffers`,
-    /// which happens e.g. in `Frame::finish()`.
-    unsafe fn present(&mut self) {
+    /// The buffer we are trying to present must be valid.
+    /// Defining validity precisely needs more work but it likely involves
+    /// writing to the buffer so that it does not contain uninitialized memory.
+    ///
+    /// One way to achieve this is with `glium`'s `Frame::finish()`,
+    /// which calls `eglSwapBuffers()` internally and that in turns calls
+    /// `glFlush()` to write to the buffer.
+    pub unsafe fn present(&mut self) {
         // TODO(mbernat): move this elsewhere
         let depth_bits = 24;
         let bits_per_pixel = 32;
 
         // SAFETY: we offloaded the `lock_front_buffer()` precondition to our caller
-        let mut buffer_object = unsafe { self.gbm_surface.lock_front_buffer().unwrap() };
+        let mut buffer_object = unsafe { self.gbm_surface.lock_front_buffer() }
+            .expect("Could not obtain a buffer object from the GBM surface");
 
         // NOTE(mbernat): Frame buffer recycling:
         // we store an FB handle in buffer object's user_data() and reuse the FB when it exists
@@ -53,50 +69,50 @@ impl Window {
                 .drm_display
                 .gbm_device
                 .add_framebuffer(&buffer_object, depth_bits, bits_per_pixel)
-                .unwrap();
+                .expect("Could not add a frame buffer");
             buffer_object.set_userdata(fb).expect("Could not set buffer object user data");
             fb
         };
 
-        if self.frame_count == 0 {
-            // NOTE(mbernat): It's possible to avoid initial mode setting
-            // since we're keeping the previous mode: we could just call page_flip directly.
-            self.drm_display.set_mode_with_framebuffer(Some(fb));
-        } else {
-            self.drm_display.page_flip(fb);
-        }
+        self.display_state = match &self.display_state {
+            DisplayState::Init => {
+                // NOTE(mbernat): Displays often use their preferred modes.
+                // If that's already the case we can avoid initial mode setting and go
+                // straight to page flipping as a small optimization.
+                self.drm_display.set_mode_with_framebuffer(fb);
+                DisplayState::ModeSet { _buffer_object: buffer_object }
+            },
+            DisplayState::ModeSet { .. } | DisplayState::PageFlipped { .. } => {
+                self.drm_display.page_flip(fb);
+                // The buffer object we store here will hang around for a frame
+                // and will be dropped by this match arm in the next frame;
+                // this is sufficient for double buffering.
+                DisplayState::PageFlipped { _buffer_object: buffer_object }
+            },
+        };
 
-        // NOTE(mbernat): This buffer object returns to the surface's queue upon destruction.
-        // If we were to release it here, it would be again available from
-        // `Surface::lock_front_buffer()` next and the app would be effectively single-buffered.
-        // So, we keep it around for one frame, which is fine for double buffering.
-        self.previous_bo.replace(buffer_object);
-
-        self.frame_count += 1;
-    }
-
-    pub fn restore_original_display(&self) {
-        let handle = self.drm_display.crtc.framebuffer().unwrap();
-        if self.drm_display.gbm_device.get_framebuffer(handle).is_ok() {
-            self.drm_display.set_mode_with_framebuffer(self.drm_display.crtc.framebuffer());
-        }
-    }
-
-    pub fn draw(&mut self, mut drawer: impl FnMut()) {
-        drawer();
-        // SAFETY: eglSwapBuffers is called by `frame.finish()` in drawer()
-        unsafe { self.present() };
-
-        // The first page flip is scheduled after frame #1 (which is the second frame)
-        // Yes, this is very stupid, just testing if it works
-
-        if self.frame_count > 1 {
+        // Page flips are scheduled asynchronously, so we need to await their completion.
+        if matches!(self.display_state, DisplayState::PageFlipped { .. }) {
+            // This call is blocking and should not be called when no events are expected.
+            // Its implementation is just a read from the DRM file descriptor, which should
+            // be replaced by e.g. an `epoll` over multiple sources in a proper event loop.
             let _events =
                 self.drm_display.gbm_device.receive_events().expect("Could not receive events");
 
             // TODO(mbernat): We could do additional processing
             // on these events if they report page flips that we scheduled
             // but with the current setup there is nothing we need to do.
+        }
+    }
+
+    pub fn restore_original_display(&self) {
+        let handle = self
+            .drm_display
+            .crtc
+            .framebuffer()
+            .expect("Window should have a CRTC framebuffer handle");
+        if let Ok(fb) = self.drm_display.gbm_device.get_framebuffer(handle) {
+            self.drm_display.set_mode_with_framebuffer(fb.handle());
         }
     }
 }
