@@ -4,6 +4,11 @@ use gbm::{BufferObject, BufferObjectFlags, Format as BufferFormat, Surface};
 
 enum DisplayState {
     Init,
+    // NOTE(mbernat): Buffer objects obtained from a surface
+    // return to the surface's queue when dropped, so we need to store them here.
+    //
+    // Unfortunately, this behavior is not very well documented,
+    // see `Surface::lock_front_buffer()` implementation for details.
     ModeSet { _buffer_object: BufferObject<FramebufferHandle> },
     PageFlipped { _buffer_object: BufferObject<FramebufferHandle> },
 }
@@ -11,11 +16,6 @@ enum DisplayState {
 pub struct Window {
     pub(crate) gbm_surface: Surface<FramebufferHandle>,
     pub(crate) drm_display: DrmDisplay,
-    // NOTE(mbernat): Buffer objects obtained from a surface
-    // return to the surface's queue when dropped.
-    //
-    // Unfortunately, this behavior is not very well documented,
-    // see `Surface::lock_front_buffer()` implementation for details.
     display_state: DisplayState,
 }
 
@@ -39,7 +39,7 @@ impl Window {
             .create_surface(drm_display.width, drm_display.height, format, usage)
             .expect("Could not create a GBM surface");
 
-        Window { gbm_surface, drm_display, display_state: DisplayState::Init } //, frame_count: 0, previous_buffer_object: None }
+        Window { gbm_surface, drm_display, display_state: DisplayState::Init }
     }
 
     /// # Safety
