@@ -169,7 +169,7 @@ impl DrmDisplay {
             .expect("set_crtc failed");
     }
 
-    pub(crate) fn page_flip(&self, fb: FramebufferHandle) {
+    pub(crate) fn schedule_page_flip(&self, fb: FramebufferHandle) {
         let flags = PageFlipFlags::EVENT;
         let target_sequence = None;
         self.gbm_device

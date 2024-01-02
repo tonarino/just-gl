@@ -10,7 +10,7 @@ enum DisplayState {
     // Unfortunately, this behavior is not very well documented,
     // see `Surface::lock_front_buffer()` implementation for details.
     ModeSet { _buffer_object: BufferObject<FramebufferHandle> },
-    PageFlipped { _buffer_object: BufferObject<FramebufferHandle> },
+    PageFlipScheduled { _buffer_object: BufferObject<FramebufferHandle> },
 }
 
 pub struct Window {
@@ -82,17 +82,17 @@ impl Window {
                 self.drm_display.set_mode_with_framebuffer(fb);
                 DisplayState::ModeSet { _buffer_object: buffer_object }
             },
-            DisplayState::ModeSet { .. } | DisplayState::PageFlipped { .. } => {
-                self.drm_display.page_flip(fb);
+            DisplayState::ModeSet { .. } | DisplayState::PageFlipScheduled { .. } => {
+                self.drm_display.schedule_page_flip(fb);
                 // The buffer object we store here will hang around for a frame
                 // and will be dropped by this match arm in the next frame;
                 // this is sufficient for double buffering.
-                DisplayState::PageFlipped { _buffer_object: buffer_object }
+                DisplayState::PageFlipScheduled { _buffer_object: buffer_object }
             },
         };
 
         // Page flips are scheduled asynchronously, so we need to await their completion.
-        if matches!(self.display_state, DisplayState::PageFlipped { .. }) {
+        if matches!(self.display_state, DisplayState::PageFlipScheduled { .. }) {
             // This call is blocking and should not be called when no events are expected.
             // Its implementation is just a read from the DRM file descriptor, which should
             // be replaced by e.g. an `epoll` over multiple sources in a proper event loop.
